@@ -1,0 +1,30 @@
+# Build outputs
+bin/
+obj/
+
+# User/IDE
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.swp
+
+# Test/coverage artifacts
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# Runtime artifacts
+*.log
+*.db
+*.db-shm
+*.db-wal
+
+# macOS
+.DS_Store
+
+# NuGet local caches (repo-local)
+packages/
