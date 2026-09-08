@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DesignWidth="800"
+        d:DesignHeight="450"
+        x:Class="SerialScout.App.MainWindow"
+        Width="800"
+        Height="450"
+        MinWidth="520"
+        MinHeight="320"
+        Title="Serial Scout">
+  <Grid Margin="32" RowDefinitions="Auto,Auto,*">
+    <TextBlock FontSize="28" FontWeight="SemiBold" Text="Serial Scout" />
+    <TextBlock Grid.Row="1"
+               Margin="0,12,0,0"
+               Text="Local serial profiles and session logs stay on this device."
+               TextWrapping="Wrap" />
+    <Border Grid.Row="2"
+            Margin="0,24,0,0"
+            Padding="20"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+      <TextBlock VerticalAlignment="Center"
+                 HorizontalAlignment="Center"
+                 Text="Project shell ready — device discovery arrives next."
+                 TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</Window>

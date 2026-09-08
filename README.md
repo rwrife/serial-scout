@@ -54,7 +54,10 @@ Developers and hardware hobbyists often switch between ESP32/RP2040/Arduino devi
 
 ## Current status
 
-Scaffold and backlog only. No production app, binary releases, or compatibility claims yet.
+The .NET 8 solution, Avalonia desktop shell, core library, test project, and
+cross-platform CI baseline are in place. Device discovery and production
+workflows remain under active development; there are no binary releases or
+compatibility claims yet.
 
 ## Milestones
 
@@ -63,16 +66,23 @@ Scaffold and backlog only. No production app, binary releases, or compatibility 
 - M3: Desktop UI polish + accessibility baseline
 - M4: Export/backup + packaging for Windows/macOS
 
-## Development quickstart (planned)
+## Development quickstart
 
 ```bash
-# prerequisites: .NET 8 SDK
-# clone
- git clone https://github.com/rwrife/serial-scout.git
- cd serial-scout
+# Prerequisite: .NET 8 SDK
+git clone https://github.com/rwrife/serial-scout.git
+cd serial-scout
 
-# planned project bootstrap (to be created in issue #1)
- dotnet --info
+# Restore exactly the dependency versions recorded in packages.lock.json.
+dotnet restore SerialScout.sln --locked-mode
+
+# Run the same quality gates used by CI.
+dotnet format SerialScout.sln --verify-no-changes --no-restore
+dotnet build SerialScout.sln --configuration Release --no-restore
+dotnet test SerialScout.sln --configuration Release --no-build
+
+# Launch the desktop shell.
+dotnet run --project src/SerialScout.App/SerialScout.App.csproj
 ```
 
-Until issue backlog execution starts, this repository is documentation-only.
+CI runs formatting, build, and test checks on both Windows and macOS.
