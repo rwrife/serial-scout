@@ -55,9 +55,12 @@ Developers and hardware hobbyists often switch between ESP32/RP2040/Arduino devi
 ## Current status
 
 The .NET 8 solution, Avalonia desktop shell, core library, test project, and
-cross-platform CI baseline are in place. Device discovery and production
-workflows remain under active development; there are no binary releases or
-compatibility claims yet.
+cross-platform CI baseline are in place. Cross-platform serial discovery is implemented
+in `SerialScout.Core.Discovery` (Windows PnP + macOS ioreg adapters with a normalized
+port model and explicit scan states); see
+[docs/discovery-metadata.md](docs/discovery-metadata.md) for per-OS metadata limits.
+Profile matching, session engine, and production workflows remain under active
+development; there are no binary releases or compatibility claims yet.
 
 ## Milestones
 

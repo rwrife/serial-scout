@@ -1,0 +1,8 @@
++-o IOSerialBSDClient  <class IOSerialBSDClient, id 0x100040a01, registered, matched, active, busy 0 (1 ms), retain 5>
+{
+  "IOClass" = "IOSerialBSDClient"
+  "IOTTYBaseName" = "uart"
+  "IOTTYDevice" = "uart-debugconsole"
+  "IOCalloutDevice" = "/dev/cu.debug-console"
+  "IODialinDevice" = "/dev/tty.debug-console"
+}

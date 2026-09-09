@@ -1,0 +1,59 @@
+2026-09-09 10:11:12.000 ioreg[42424:C000000000] [D1]{0x1027f8890}{AppleHPMIECSessionDriverUserClient}<IOLevel=<0x1>,IOServicePort=<0x1027f8890>>
++-o IOResources  <class IOResources, id 0x10000025f, registered, matched, active, busy 0 (1 ms), retain 14>
+{
+  "IOClass" = "IOResources"
+  "IOResourceMatched" = 1
+  "IOProviderClass" = "IOService"
+}
++-o USB2.0-Serial@14100000,4  <class IOUSBHostDevice, id 0x10003a2b1, registered, matched, active, busy 0 (35 ms), retain 30>
+{
+  "sessionID" = 3310468127643157
+  "iProduct" = 6
+  "iSerialNumber" = "AB0XYZ12"
+  "bDeviceClass" = 0
+  "bDeviceSubClass" = 0
+  "bDeviceProtocol" = 0
+  "bNumConfigurations" = 1
+  "USB Product Name" = "USB2.0-Serial"
+  "USB Vendor Name" = "wch.cn"
+  "idProduct" = 29987
+  "idVendor" = 6790
+  "bMaxPacketSize0" = 64
+  "USB Address" = 4
+  "IOGeneralInterest" = "IOCommand is not serial"
+  "IOProbeScore" = 4000
+  "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit"))
+  +-o AppleUSBACMData@14100000,4:1  <class AppleUSBACMData, id 0x10003a2b3, registered, matched, active, busy 0 (12 ms), retain 14>
+  {
+    "IOClass" = "AppleUSBACMData"
+    "IOProviderClass" = "IOUSBHostInterface"
+    "bInterfaceClass" = 2
+    "bInterfaceSubClass" = 2
+    "+-not-a-property" = "should never appear"
+    "IORegistryEntry" = 
+    {
+      "idVendor" = 4095
+      "idProduct" = 4095
+    }
+    +-o IOSerialBSDClient  <class IOSerialBSDClient, id 0x10003a2b5, registered, matched, active, busy 0 (1 ms), retain 6>
+    {
+      "IOClass" = "IOSerialBSDClient"
+      "IOMediaReference" = 1
+      "IOProviderClass" = "IOSerialBSDClient"
+      "IOTTYBaseName" = "usbserial"
+      "IOTTYDevice" = "usbserial-1120"
+      "IOCalloutDevice" = "/dev/cu.usbserial-1120"
+      "IODialinDevice" = "/dev/tty.usbserial-1120"
+      "IOMaxBaudRate" = 230400
+      "IOSerialBSDClientOptions" = 
+      {
+        "idVendor" = 1
+        "idProduct" = 1
+      }
+    }
+  }
+}
++-o AppleHCTERootHub  <class AppleHCTERootHub, id 0x100000456, registered, matched, active, busy 0 (0 ms), retain 6>
+{
+  "IOClass" = "AppleHCTERootHub"
+}
