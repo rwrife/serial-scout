@@ -13,6 +13,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A80660E3
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerialScout.Core.Tests", "tests\SerialScout.Core.Tests\SerialScout.Core.Tests.csproj", "{30E6B830-E5CD-4F04-B7AE-D553144EB3A1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerialScout.App.Tests", "tests\SerialScout.App.Tests\SerialScout.App.Tests.csproj", "{6A8D5A20-21DC-4732-8F91-0C54F1D94F93}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -34,10 +36,15 @@ Global
 		{30E6B830-E5CD-4F04-B7AE-D553144EB3A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{30E6B830-E5CD-4F04-B7AE-D553144EB3A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{30E6B830-E5CD-4F04-B7AE-D553144EB3A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6A8D5A20-21DC-4732-8F91-0C54F1D94F93}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6A8D5A20-21DC-4732-8F91-0C54F1D94F93}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6A8D5A20-21DC-4732-8F91-0C54F1D94F93}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6A8D5A20-21DC-4732-8F91-0C54F1D94F93}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{9A37AD23-85DF-4512-BBF8-E6A847AFA58D} = {0E9D2087-FADD-4A7B-8B23-4B97660F2B3D}
 		{992584E5-E628-4B3C-9AFE-EB6E5AD25DD6} = {0E9D2087-FADD-4A7B-8B23-4B97660F2B3D}
 		{30E6B830-E5CD-4F04-B7AE-D553144EB3A1} = {A80660E3-F0B9-426E-91F9-863507231AE5}
+		{6A8D5A20-21DC-4732-8F91-0C54F1D94F93} = {A80660E3-F0B9-426E-91F9-863507231AE5}
 	EndGlobalSection
 EndGlobal

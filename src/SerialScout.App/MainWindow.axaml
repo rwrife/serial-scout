@@ -2,31 +2,251 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:SerialScout.App.ViewModels"
         mc:Ignorable="d"
-        d:DesignWidth="800"
-        d:DesignHeight="450"
+        d:DesignWidth="1080"
+        d:DesignHeight="680"
         x:Class="SerialScout.App.MainWindow"
-        Width="800"
-        Height="450"
-        MinWidth="520"
-        MinHeight="320"
-        Title="Serial Scout">
-  <Grid Margin="32" RowDefinitions="Auto,Auto,*">
-    <TextBlock FontSize="28" FontWeight="SemiBold" Text="Serial Scout" />
-    <TextBlock Grid.Row="1"
-               Margin="0,12,0,0"
-               Text="Local serial profiles and session logs stay on this device."
-               TextWrapping="Wrap" />
-    <Border Grid.Row="2"
-            Margin="0,24,0,0"
-            Padding="20"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-            BorderThickness="1"
-            CornerRadius="8">
-      <TextBlock VerticalAlignment="Center"
-                 HorizontalAlignment="Center"
-                 Text="Project shell ready — device discovery arrives next."
-                 TextWrapping="Wrap" />
+        x:DataType="vm:MainViewModel"
+        Width="1080"
+        Height="680"
+        MinWidth="720"
+        MinHeight="480"
+        Title="Serial Scout"
+        Name="Shell">
+  <Window.KeyBindings>
+    <KeyBinding Gesture="F5" Command="{Binding Devices.RefreshCommand}" />
+  </Window.KeyBindings>
+
+  <DockPanel Margin="8">
+    <!-- Error banner: always text, dismissible via keyboard. -->
+    <Border DockPanel.Dock="Top"
+            IsVisible="{Binding LastError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+            Padding="10,6"
+            Background="#3FDB3C3C"
+            CornerRadius="4">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0"
+                   Text="{Binding LastError}"
+                   TextWrapping="Wrap"
+                   AutomationProperties.Name="Error message" />
+        <Button Grid.Column="1"
+                Content="Dismiss"
+                Margin="8,0,0,0"
+                Click="OnDismissError"
+                AutomationProperties.Name="Dismiss error banner" />
+      </Grid>
     </Border>
-  </Grid>
+
+    <TabControl SelectedIndex="{Binding SelectedTabIndex}">
+
+      <!-- ===== Devices ===== -->
+      <TabItem Header="Devices">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="0,8,0,0">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Refresh scan"
+                    Command="{Binding Devices.RefreshCommand}"
+                    KeyboardNavigation.TabIndex="0"
+                    AutomationProperties.Name="Refresh device scan (F5)" />
+            <Button Content="New profile from selection" Click="OnDraftFromSelection"
+                    AutomationProperties.Name="Create profile draft from selected device" />
+            <TextBlock VerticalAlignment="Center" Text="{Binding Devices.StatusText}" />
+          </StackPanel>
+
+          <ListBox Grid.Row="1"
+                   Margin="0,8"
+                   ItemsSource="{Binding Devices.Devices}"
+                   SelectedItem="{Binding Devices.SelectedDevice}"
+                   AutomationProperties.Name="Discovered devices">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:DeviceRow">
+                <StackPanel Spacing="2" Margin="2">
+                  <TextBlock Text="{Binding AccessibilitySummary}"
+                             AutomationProperties.Name="{Binding AccessibilitySummary}" />
+                  <TextBlock FontSize="11"
+                             Opacity="0.8"
+                             Text="{Binding DescriptionLabel}" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <ListBox Grid.Row="2"
+                   MaxHeight="180"
+                   ItemsSource="{Binding SessionHistory}"
+                   AutomationProperties.Name="Past sessions">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:SessionHistoryRow">
+                <TextBlock Text="{Binding AccessibilitySummary}"
+                           AutomationProperties.Name="{Binding AccessibilitySummary}" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </TabItem>
+
+      <!-- ===== Profiles ===== -->
+      <TabItem Header="Profiles">
+        <ScrollViewer Margin="0,8,0,0">
+          <StackPanel Spacing="10" MaxWidth="640" HorizontalAlignment="Left">
+            <TextBlock FontSize="18" Text="{Binding Editor.Title}" />
+            <TextBlock Text="Names and rules stay in the local database on this machine."
+                       Opacity="0.8" />
+
+            <TextBlock Classes="field-label" Text="Profile name" Margin="0,6,0,2" />
+            <TextBox
+                     Text="{Binding Editor.NameText}"
+                     Watermark="e.g. Lab ESP32"
+                     AutomationProperties.Name="Profile name" />
+
+            <Grid ColumnDefinitions="*,*">
+              <TextBlock Classes="field-label" Text="Vendor id (hex or decimal)" Margin="0,6,0,2" />
+              <TextBox Grid.Column="0"
+                       Text="{Binding Editor.VendorIdText}"
+                       Watermark="1A86"
+                       Margin="0,0,8,0"
+                       AutomationProperties.Name="USB vendor id" />
+              <TextBlock Classes="field-label" Text="Product id (hex or decimal)" Margin="0,6,0,2" />
+              <TextBox Grid.Column="1"
+                       Text="{Binding Editor.ProductIdText}"
+                       Watermark="7523"
+                       AutomationProperties.Name="USB product id" />
+            </Grid>
+
+            <TextBlock Classes="field-label" Text="Serial fingerprint (optional, exact binding)" Margin="0,6,0,2" />
+            <TextBox
+                     Text="{Binding Editor.SerialFingerprint}"
+                     AutomationProperties.Name="Serial number fingerprint" />
+            <TextBlock Classes="field-label" Text="Product hint (optional substring)" Margin="0,6,0,2" />
+            <TextBox
+                     Text="{Binding Editor.ProductHint}"
+                     AutomationProperties.Name="Product name hint" />
+            <TextBlock Classes="field-label" Text="Manufacturer hint (optional substring)" Margin="0,6,0,2" />
+            <TextBox
+                     Text="{Binding Editor.ManufacturerHint}"
+                     AutomationProperties.Name="Manufacturer hint" />
+
+            <Grid ColumnDefinitions="*,*,*,*">
+              <TextBlock Classes="field-label" Text="Baud" Margin="0,6,0,2" />
+              <ComboBox Grid.Column="0"
+                        ItemsSource="{Binding Editor.BaudRateChoices}"
+                        SelectedItem="{Binding Editor.BaudRateText}"
+                        Margin="0,0,8,0"
+                        AutomationProperties.Name="Default baud rate" />
+              <TextBlock Classes="field-label" Text="Data bits" Margin="0,6,0,2" />
+              <ComboBox Grid.Column="1"
+                        ItemsSource="{Binding Editor.DataBitsChoices}"
+                        SelectedIndex="{Binding Editor.DataBitsIndex}"
+                        Margin="0,0,8,0"
+                        AutomationProperties.Name="Data bits" />
+              <TextBlock Classes="field-label" Text="Parity" Margin="0,6,0,2" />
+              <ComboBox Grid.Column="2"
+                        ItemsSource="{Binding Editor.ParityChoices}"
+                        SelectedIndex="{Binding Editor.ParityIndex}"
+                        Margin="0,0,8,0"
+                        AutomationProperties.Name="Parity" />
+              <TextBlock Classes="field-label" Text="Stop bits" Margin="0,6,0,2" />
+              <ComboBox Grid.Column="3"
+                        ItemsSource="{Binding Editor.StopBitsChoices}"
+                        SelectedIndex="{Binding Editor.StopBitsIndex}"
+                        AutomationProperties.Name="Stop bits" />
+            </Grid>
+
+            <TextBlock Classes="field-label" Text="Line ending for sends" Margin="0,6,0,2" />
+            <ComboBox
+                      ItemsSource="{Binding Editor.LineEndingChoices}"
+                      SelectedIndex="{Binding Editor.LineEndingIndex}"
+                      Width="160"
+                      HorizontalAlignment="Left"
+                      AutomationProperties.Name="Default line ending" />
+
+            <TextBlock Classes="field-label" Text="Notes" Margin="0,6,0,2" />
+            <TextBox
+                     Text="{Binding Editor.Notes}"
+                     AcceptsReturn="True"
+                     MinHeight="52"
+                     AutomationProperties.Name="Profile notes" />
+
+            <TextBlock Text="{Binding Editor.ValidationText}"
+                       Foreground="#E57373"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Editor.PreviewText}"
+                       TextWrapping="Wrap"
+                       Opacity="0.9" />
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Save profile"
+                      Command="{Binding Editor.SaveCommand}"
+                      AutomationProperties.Name="Save profile" />
+              <Button Content="Delete profile"
+                      Command="{Binding Editor.DeleteCommand}"
+                      IsEnabled="{Binding Editor.IsExisting}"
+                      AutomationProperties.Name="Delete profile" />
+              <Button Content="New / reset"
+                      Command="{Binding Editor.ResetCommand}"
+                      AutomationProperties.Name="Clear editor for a new profile" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <!-- ===== Terminal ===== -->
+      <TabItem Header="Terminal">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="0,8,0,0" ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Connect"
+                    Command="{Binding Terminal.ConnectCommand}"
+                    AutomationProperties.Name="Connect to selected device" />
+            <Button Content="Disconnect"
+                    Command="{Binding Terminal.DisconnectCommand}"
+                    AutomationProperties.Name="Disconnect session" />
+            <Button Content="Reconnect"
+                    Command="{Binding Terminal.ReconnectCommand}"
+                    AutomationProperties.Name="Reconnect session" />
+            <TextBlock VerticalAlignment="Center" Text="{Binding Terminal.StatusText}" />
+            <TextBlock VerticalAlignment="Center" Text="{Binding Terminal.ProfileLabel}" />
+          </StackPanel>
+
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,8">
+            <ComboBox ItemsSource="{Binding Terminal.BaudRateChoices}"
+                      SelectedIndex="{Binding Terminal.BaudIndex}"
+                      AutomationProperties.Name="Session baud rate" />
+            <ComboBox ItemsSource="{Binding Terminal.LineEndingChoices}"
+                      SelectedIndex="{Binding Terminal.LineEndingIndex}"
+                      AutomationProperties.Name="Session line ending" />
+            <CheckBox IsChecked="{Binding Terminal.AutoReconnect}"
+                      Content="Auto-reconnect"
+                      VerticalAlignment="Center"
+                      AutomationProperties.Name="Automatically reconnect after drops" />
+          </StackPanel>
+
+          <TextBox Grid.Row="2" Grid.ColumnSpan="2"
+                   Text="{Binding Terminal.LogText, Mode=OneWay}"
+                   IsReadOnly="True"
+                   AcceptsReturn="True"
+                   FontFamily="Consolas,Menlo,monospace"
+                   Watermark="Session log (RX/TX)"
+                   AutomationProperties.Name="Session log, newest at bottom" />
+
+          <Grid Grid.Row="3" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0">
+            <TextBox Grid.Column="0"
+                     Text="{Binding Terminal.LogFilter}"
+                     Watermark="Filter log (case-insensitive)"
+                     AutomationProperties.Name="Filter log text" />
+            <Button Grid.Column="1" Content="Save log..." Margin="8,0,0,0"
+                    Click="OnSaveLog"
+                    AutomationProperties.Name="Save visible log to file" />
+            <TextBox Grid.Column="2" Width="260"
+                     Text="{Binding Terminal.SendText}"
+                     Watermark="Send text (Enter sends)"
+                     AutomationProperties.Name="Text to send">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding Terminal.SendCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </Grid>
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
 </Window>
