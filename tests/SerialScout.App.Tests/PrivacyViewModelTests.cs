@@ -106,6 +106,14 @@ public sealed class PrivacyViewModelTests
         }
         finally
         {
+            // Disposal returns SQLite's handle to its pool; Windows cannot delete it yet.
+            using var pooledConnection = new Microsoft.Data.Sqlite.SqliteConnection(
+                new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+                {
+                    DataSource = databasePath,
+                    Mode = Microsoft.Data.Sqlite.SqliteOpenMode.ReadWriteCreate,
+                }.ToString());
+            Microsoft.Data.Sqlite.SqliteConnection.ClearPool(pooledConnection);
             File.Delete(databasePath);
             File.Delete(databasePath + "-wal");
             File.Delete(databasePath + "-shm");
