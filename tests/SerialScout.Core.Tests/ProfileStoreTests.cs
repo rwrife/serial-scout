@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using SerialScout.Core.Profiles;
+using SerialScout.Core.Sessions;
 using SerialScout.Core.Storage;
 
 namespace SerialScout.Core.Tests;
@@ -147,6 +148,70 @@ public sealed class ProfileStoreTests : IDisposable
 
         using var second = new ProfileStore(file.Path);
         Assert.Single(second.ListProfiles());
+    }
+
+    [Fact]
+    public void SessionEventsRoundTripInCaptureOrderWithoutSharingPayloadBuffers()
+    {
+        var session = _store.CreateSession("COM7", Started);
+        var payload = new byte[] { 1, 2, 3 };
+        _store.AppendSessionEvent(session.Id, new LogEvent(Started.AddSeconds(2), LogEventDirection.Sent, payload));
+        _store.AppendSessionEvent(session.Id, new LogEvent(Started.AddSeconds(1), LogEventDirection.Received, new byte[] { 4 }));
+        payload[0] = 99;
+
+        var events = _store.ListSessionEvents(session.Id);
+
+        Assert.Equal(2, events.Count);
+        Assert.Equal(new byte[] { 1, 2, 3 }, events[0].Payload);
+        Assert.Equal(LogEventDirection.Received, events[1].Direction);
+    }
+
+    [Fact]
+    public void RetentionKeepsNewestSessionsAndCascadesTheirCapturedEvents()
+    {
+        var oldest = _store.CreateSession("COM1", Started);
+        var middle = _store.CreateSession("COM2", Started.AddMinutes(1));
+        var newest = _store.CreateSession("COM3", Started.AddMinutes(2));
+        _store.AppendSessionEvent(oldest.Id, new LogEvent(Started, LogEventDirection.Received, new byte[] { 1 }));
+        _store.AppendSessionEvent(middle.Id, new LogEvent(Started, LogEventDirection.Received, new byte[] { 2 }));
+        _store.AppendSessionEvent(newest.Id, new LogEvent(Started, LogEventDirection.Received, new byte[] { 3 }));
+
+        var removed = _store.RetainNewestSessions(2);
+
+        Assert.Equal(1, removed);
+        Assert.Equal(new[] { newest.Id, middle.Id }, _store.ListSessions().Select(item => item.Id));
+        Assert.Empty(_store.ListSessionEvents(oldest.Id));
+        Assert.Single(_store.ListSessionEvents(middle.Id));
+    }
+
+    [Fact]
+    public void RetentionNeverDeletesAnOlderUnfinishedSession()
+    {
+        var active = _store.CreateSession("COM-active", Started);
+        var newest = _store.CreateSession("COM-new", Started.AddMinutes(1));
+        _store.EndSession(newest.Id, Started.AddMinutes(2));
+
+        var removed = _store.RetainNewestSessions(1, active.Id);
+
+        Assert.Equal(0, removed);
+        Assert.Equal(new[] { newest.Id, active.Id }, _store.ListSessions().Select(item => item.Id));
+    }
+
+    [Fact]
+    public void SnapshotContainsProfilesSessionsAndEventCopiesFromOneStoreView()
+    {
+        var profile = _store.CreateProfile(NewProfile("snapshot"));
+        var session = _store.CreateSession("COM-snapshot", Started, profile.Id);
+        var payload = new byte[] { 1, 2, 3 };
+        _store.AppendSessionEvent(session.Id, new LogEvent(Started, LogEventDirection.Received, payload));
+
+        var snapshot = _store.CreateSnapshot();
+        payload[0] = 99;
+
+        Assert.Equal(profile.Id, Assert.Single(snapshot.Profiles).Id);
+        var storedSession = Assert.Single(snapshot.Sessions);
+        Assert.Equal(session.Id, storedSession.Metadata.Id);
+        Assert.Equal(new byte[] { 1, 2, 3 }, Assert.Single(storedSession.Events).Payload);
     }
 
     public void Dispose() => _store.Dispose();

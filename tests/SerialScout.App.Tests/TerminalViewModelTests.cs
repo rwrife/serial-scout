@@ -1,4 +1,3 @@
-using System.Text;
 using SerialScout.App.ViewModels;
 using SerialScout.Core.Profiles;
 
@@ -7,7 +6,7 @@ namespace SerialScout.App.Tests;
 /// <summary>
 /// Headless view-model tests for the terminal pane (issue #5): connect/disconnect/
 /// reconnect commands, engine-event driven status text, send framing, filtered log
-/// rendering, and the save-log entry point.
+/// rendering.
 /// </summary>
 public sealed class TerminalViewModelTests
 {
@@ -147,31 +146,6 @@ public sealed class TerminalViewModelTests
     }
 
     [Fact]
-    public async Task SaveLogWritesRenderedTextToFile()
-    {
-        var path = Path.Combine(Path.GetTempPath(), $"scout-log-{Guid.NewGuid():N}.txt");
-        try
-        {
-            using var store = new Core.Storage.ProfileStore(":memory:");
-            var factory = new ScriptedLinkFactory();
-            using var vm = new TerminalViewModel(factory, store, _ => { });
-            vm.PortPath = Port;
-            await vm.ConnectCommand.ExecuteAsync();
-            vm.SendText = "AT";
-            await vm.SendCommand.ExecuteAsync();
-
-            await vm.SaveLogToFileAsync(path, _ => throw new InvalidOperationException("save must not error"));
-
-            var text = await File.ReadAllTextAsync(path);
-            Assert.Contains("TX AT", text, StringComparison.Ordinal);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
     public void BindDeviceAdoptsProfileDefaults()
     {
         using var store = new Core.Storage.ProfileStore(":memory:");
@@ -188,6 +162,5 @@ public sealed class TerminalViewModelTests
         Assert.Equal(Port, vm.PortPath);
         Assert.Equal("Profile: Lab", vm.ProfileLabel);
         Assert.Equal(0, vm.BaudIndex); // 9600 is choice index 0
-        _ = Encoding.UTF8;
     }
 }

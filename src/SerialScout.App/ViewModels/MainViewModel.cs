@@ -39,11 +39,13 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Devices = new DeviceListViewModel(discovery, _store, _reportError, _utcNow);
         Editor = new ProfileEditorViewModel(_store, _reportError, _utcNow);
         Terminal = new TerminalViewModel(new PortsSerialLinkFactory(), _store, _reportError);
+        Privacy = new PrivacyViewModel(_store, _reportError, () => Terminal.ActiveSessionId);
 
         Devices.SelectedDeviceChangedHook = OnDeviceSelected;
         Devices.Scanned += (_, _) =>
         {
             RefreshSessionHistory();
+            Privacy.RefreshSessions();
             ReapplySelectionPreview();
         };
         Editor.Saved += (_, _) => _ = Devices.RefreshAsync();
@@ -61,6 +63,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>Terminal session pane.</summary>
     public TerminalViewModel Terminal { get; }
+
+    /// <summary>Local export, backup/restore, and retention workspace.</summary>
+    public PrivacyViewModel Privacy { get; }
 
     /// <summary>Most-recent-first session history rows (metadata only, never payloads).</summary>
     public ObservableCollection<SessionHistoryRow> SessionHistory { get; } = [];
