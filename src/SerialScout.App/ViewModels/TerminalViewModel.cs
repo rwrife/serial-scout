@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using SerialScout.Core.Profiles;
 using SerialScout.Core.Sessions;
 using SerialScout.Core.Storage;
@@ -22,6 +21,7 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
     private SessionService? _session;
     private CancellationTokenSource? _pumpCancellation;
     private Task? _pumpTask;
+    private long _activeSessionId;
     private Action? _stopLogRefresh;
     private bool _disposed;
 
@@ -171,6 +171,16 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
     /// <summary>True when a live (connected or reconnecting) session exists.</summary>
     public bool IsConnected => _session is { State: SessionState.Connected or SessionState.Reconnecting };
 
+    /// <summary>Persisted row for the live terminal session, or null when no capture is active.</summary>
+    public long? ActiveSessionId
+    {
+        get
+        {
+            var sessionId = Interlocked.Read(ref _activeSessionId);
+            return sessionId > 0 ? sessionId : null;
+        }
+    }
+
     /// <summary>Opens the configured port and starts the engine.</summary>
     public AsyncRelayCommand ConnectCommand { get; }
 
@@ -242,6 +252,7 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
         }
 
         _session = result.Service;
+        Interlocked.Exchange(ref _activeSessionId, result.Service.SessionId);
         _pumpCancellation = new CancellationTokenSource();
         Ui.Post(() =>
         {
@@ -282,6 +293,7 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
         }
 
         await session.StopAsync().ConfigureAwait(false);
+        Interlocked.Exchange(ref _activeSessionId, 0);
         pumpCancellation?.Dispose();
         StopLogRefresh();
         RefreshLogText();
@@ -322,29 +334,6 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
             Ui.Post(() => _reportError(ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// Save/export entry point for the log panel: writes the currently rendered
-    /// (filtered) log text to a user-chosen local path. Issue #6 replaces this with the
-    /// full redaction-preset export pipeline; this keeps the UI promise of a reachable
-    /// save action today.
-    /// </summary>
-    /// <param name="path">Destination file path chosen by the user.</param>
-    /// <param name="reportError">Receives IO failure messages.</param>
-    public async Task SaveLogToFileAsync(string path, Action<string> reportError)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        ArgumentNullException.ThrowIfNull(reportError);
-        var text = LogText;
-        try
-        {
-            await File.WriteAllTextAsync(path, text, Encoding.UTF8).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            Ui.Post(() => reportError(ex.Message));
         }
     }
 
@@ -457,6 +446,7 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
         if (session is not null)
         {
             await DisposeSessionCoreAsync(session).ConfigureAwait(false);
+            Interlocked.Exchange(ref _activeSessionId, 0);
         }
     }
 

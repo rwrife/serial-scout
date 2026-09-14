@@ -83,6 +83,9 @@ public sealed class SessionService : IAsyncDisposable
     /// <summary>Current live state.</summary>
     public SessionState State => (SessionState)Volatile.Read(ref _state);
 
+    /// <summary>Local metadata row id, or zero when the service has no store.</summary>
+    public long SessionId => _sessionRowId;
+
     /// <summary>
     /// Opens the port described by <paramref name="options"/> and starts the monitor
     /// loop. The initial connect happens synchronously (awaited) so callers learn the
@@ -254,7 +257,7 @@ public sealed class SessionService : IAsyncDisposable
                 throw;
             }
 
-            Log.Append(new LogEvent(_utcNow(), LogEventDirection.Sent, payload));
+            RecordLog(new LogEvent(_utcNow(), LogEventDirection.Sent, payload));
             if (historyText is not null)
             {
                 History.Record(_options.PortPath, historyText);
@@ -309,7 +312,7 @@ public sealed class SessionService : IAsyncDisposable
 
                 if (data.Length > 0)
                 {
-                    Log.Append(new LogEvent(_utcNow(), LogEventDirection.Received, data));
+                    RecordLog(new LogEvent(_utcNow(), LogEventDirection.Received, data));
                 }
 
                 if (dropReason is null && !ct.IsCancellationRequested)
@@ -381,6 +384,15 @@ public sealed class SessionService : IAsyncDisposable
             }
         }
 #pragma warning restore CA1031
+    }
+
+    private void RecordLog(LogEvent logEvent)
+    {
+        Log.Append(logEvent);
+        if (_sessionRowId != 0)
+        {
+            _store!.AppendSessionEvent(_sessionRowId, logEvent);
+        }
     }
 
     private async Task<ReconnectOutcome> ReconnectAsync(string dropReason, string? dropDetail, CancellationToken ct)

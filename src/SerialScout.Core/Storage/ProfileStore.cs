@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 using SerialScout.Core.Profiles;
+using SerialScout.Core.Sessions;
 
 namespace SerialScout.Core.Storage;
 
@@ -13,11 +14,13 @@ namespace SerialScout.Core.Storage;
 public sealed class ProfileStore : IDisposable
 {
     /// <summary>Current schema version written into <c>PRAGMA user_version</c>.</summary>
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
 
     private const string TimestampFormat = "O";
 
     private readonly SqliteConnection _connection;
+    private readonly string _databasePath;
+    private SqliteTransaction? _activeTransaction;
 
     /// <summary>
     /// Coarse lock guarding the single shared connection: the desktop UI reads and
@@ -37,12 +40,19 @@ public sealed class ProfileStore : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
 
+        _databasePath = databasePath == ":memory:" ? databasePath : Path.GetFullPath(databasePath);
         _connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
-            DataSource = databasePath,
+            DataSource = _databasePath,
             Mode = SqliteOpenMode.ReadWriteCreate,
         }.ToString());
         _connection.Open();
+        using (var foreignKeys = CreateCommand())
+        {
+            foreignKeys.CommandText = "PRAGMA foreign_keys = ON;";
+            foreignKeys.ExecuteNonQuery();
+        }
+
         EnsureSchema();
     }
 
@@ -52,7 +62,7 @@ public sealed class ProfileStore : IDisposable
         ThrowIfDisposed();
         lock (_gate)
         {
-            using var command = _connection.CreateCommand();
+            using var command = CreateCommand();
             command.CommandText = "SELECT COUNT(*) FROM profile;";
             return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
@@ -75,7 +85,7 @@ public sealed class ProfileStore : IDisposable
             }
 
             var createdUtc = DateTimeOffset.UtcNow;
-            using (var insert = _connection.CreateCommand())
+            using (var insert = CreateCommand())
             {
                 insert.CommandText = """
                 INSERT INTO profile (name, vendor_id, product_id, serial_fingerprint, product_hint,
@@ -108,6 +118,26 @@ public sealed class ProfileStore : IDisposable
         }
     }
 
+    internal DeviceProfile ImportProfileAsNew(DeviceProfile profile)
+    {
+        var created = CreateProfile(profile);
+        if (profile.CreatedUtc is not DateTimeOffset createdUtc)
+        {
+            return created;
+        }
+
+        lock (_gate)
+        {
+            using var command = CreateCommand();
+            command.CommandText = "UPDATE profile SET created_utc = $created WHERE id = $id;";
+            command.Parameters.AddWithValue("$created", createdUtc.ToUniversalTime().ToString(TimestampFormat, CultureInfo.InvariantCulture));
+            command.Parameters.AddWithValue("$id", created.Id);
+            command.ExecuteNonQuery();
+        }
+
+        return created with { CreatedUtc = createdUtc.ToUniversalTime() };
+    }
+
     /// <summary>Loads one profile by id, or <see langword="null"/> when absent.</summary>
     /// <param name="id">Profile id.</param>
     public DeviceProfile? GetProfile(long id)
@@ -115,7 +145,7 @@ public sealed class ProfileStore : IDisposable
         ThrowIfDisposed();
         lock (_gate)
         {
-            using var command = _connection.CreateCommand();
+            using var command = CreateCommand();
             command.CommandText = "SELECT " + ProfileColumns + " FROM profile WHERE id = $id;";
             command.Parameters.AddWithValue("$id", id);
             using var reader = command.ExecuteReader();
@@ -129,7 +159,7 @@ public sealed class ProfileStore : IDisposable
         ThrowIfDisposed();
         lock (_gate)
         {
-            using var command = _connection.CreateCommand();
+            using var command = CreateCommand();
             command.CommandText = "SELECT " + ProfileColumns + " FROM profile ORDER BY id;";
             using var reader = command.ExecuteReader();
             var results = new List<DeviceProfile>();
@@ -158,7 +188,7 @@ public sealed class ProfileStore : IDisposable
                 throw new ArgumentException("Profiles require a non-blank name.", nameof(profile));
             }
 
-            using var command = _connection.CreateCommand();
+            using var command = CreateCommand();
             command.CommandText = """
             UPDATE profile
                SET name = $name, vendor_id = $vendor, product_id = $product,
@@ -195,14 +225,14 @@ public sealed class ProfileStore : IDisposable
         ThrowIfDisposed();
         lock (_gate)
         {
-            using (var clearBindings = _connection.CreateCommand())
+            using (var clearBindings = CreateCommand())
             {
                 clearBindings.CommandText = "UPDATE session_metadata SET profile_id = NULL WHERE profile_id = $id;";
                 clearBindings.Parameters.AddWithValue("$id", id);
                 clearBindings.ExecuteNonQuery();
             }
 
-            using var command = _connection.CreateCommand();
+            using var command = CreateCommand();
             command.CommandText = "DELETE FROM profile WHERE id = $id;";
             command.Parameters.AddWithValue("$id", id);
             return command.ExecuteNonQuery() > 0;
@@ -221,7 +251,7 @@ public sealed class ProfileStore : IDisposable
         ThrowIfDisposed();
         lock (_gate)
         {
-            using var command = _connection.CreateCommand();
+            using var command = CreateCommand();
             command.CommandText = "UPDATE profile SET last_seen_utc = $lastSeen WHERE id = $id;";
             command.Parameters.AddWithValue("$lastSeen", lastSeenUtc.ToUniversalTime().ToString(TimestampFormat, CultureInfo.InvariantCulture));
             command.Parameters.AddWithValue("$id", id);
@@ -243,7 +273,7 @@ public sealed class ProfileStore : IDisposable
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(portPath);
 
-            using (var insert = _connection.CreateCommand())
+            using (var insert = CreateCommand())
             {
                 insert.CommandText = """
                 INSERT INTO session_metadata (profile_id, port_path, started_utc, ended_utc, notes)
@@ -277,7 +307,7 @@ public sealed class ProfileStore : IDisposable
         ThrowIfDisposed();
         lock (_gate)
         {
-            using var command = _connection.CreateCommand();
+            using var command = CreateCommand();
             command.CommandText = "UPDATE session_metadata SET ended_utc = $ended WHERE id = $id;";
             command.Parameters.AddWithValue("$ended", endedUtc.ToUniversalTime().ToString(TimestampFormat, CultureInfo.InvariantCulture));
             command.Parameters.AddWithValue("$id", id);
@@ -291,7 +321,7 @@ public sealed class ProfileStore : IDisposable
         ThrowIfDisposed();
         lock (_gate)
         {
-            using var command = _connection.CreateCommand();
+            using var command = CreateCommand();
             command.CommandText = """
             SELECT id, profile_id, port_path, started_utc, ended_utc, notes
               FROM session_metadata
@@ -316,6 +346,148 @@ public sealed class ProfileStore : IDisposable
         }
     }
 
+    /// <summary>Persists one immutable copy of a captured event for later local review/export.</summary>
+    public void AppendSessionEvent(long sessionId, LogEvent logEvent)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(logEvent);
+        if (logEvent.Payload.Length == 0)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            using var command = CreateCommand();
+            command.CommandText = """
+                INSERT INTO session_event (session_id, captured_utc, direction, payload)
+                VALUES ($sessionId, $captured, $direction, $payload);
+                """;
+            command.Parameters.AddWithValue("$sessionId", sessionId);
+            command.Parameters.AddWithValue("$captured", logEvent.Utc.ToUniversalTime().ToString(TimestampFormat, CultureInfo.InvariantCulture));
+            command.Parameters.AddWithValue("$direction", (int)logEvent.Direction);
+            command.Parameters.AddWithValue("$payload", logEvent.Payload.ToArray());
+            command.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Loads captured events for one session in original insertion order.</summary>
+    public IReadOnlyList<LogEvent> ListSessionEvents(long sessionId)
+    {
+        ThrowIfDisposed();
+        lock (_gate)
+        {
+            using var command = CreateCommand();
+            command.CommandText = """
+                SELECT captured_utc, direction, payload
+                  FROM session_event
+                 WHERE session_id = $sessionId
+                 ORDER BY sequence;
+                """;
+            command.Parameters.AddWithValue("$sessionId", sessionId);
+            using var reader = command.ExecuteReader();
+            var events = new List<LogEvent>();
+            while (reader.Read())
+            {
+                events.Add(new LogEvent(
+                    ParseTimestamp(reader.GetString(0)),
+                    (LogEventDirection)reader.GetInt32(1),
+                    ((byte[])reader.GetValue(2)).ToArray()));
+            }
+
+            return events;
+        }
+    }
+
+    /// <summary>
+    /// Deletes all but the newest <paramref name="keepCount"/> sessions. Captured events
+    /// cascade with deleted metadata; profiles and retained sessions are unchanged.
+    /// </summary>
+    /// <returns>Number of session rows removed.</returns>
+    public int RetainNewestSessions(int keepCount, long? protectedSessionId = null)
+    {
+        ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegative(keepCount);
+        lock (_gate)
+        {
+            using var command = CreateCommand();
+            command.CommandText = """
+                DELETE FROM session_metadata
+                 WHERE id NOT IN (
+                     SELECT id FROM session_metadata
+                      ORDER BY started_utc DESC, id DESC
+                      LIMIT $keepCount
+                 )
+                   AND ($protectedSessionId IS NULL OR id <> $protectedSessionId);
+                """;
+            command.Parameters.AddWithValue("$keepCount", keepCount);
+            command.Parameters.AddWithValue("$protectedSessionId", (object?)protectedSessionId ?? DBNull.Value);
+            return command.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Returns a transactionally consistent copy of profiles, sessions, and events.</summary>
+    public ProfileStoreSnapshot CreateSnapshot()
+    {
+        ThrowIfDisposed();
+        return ExecuteInTransaction(() =>
+        {
+            var profiles = ListProfiles();
+            var sessions = ListSessions()
+                .Select(session => new StoredSessionSnapshot(session, ListSessionEvents(session.Id)))
+                .ToList();
+            return new ProfileStoreSnapshot(profiles, sessions);
+        });
+    }
+
+    /// <summary>True for the live database file and its SQLite journal/WAL sidecars.</summary>
+    public bool IsDatabasePath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (_databasePath == ":memory:")
+        {
+            return false;
+        }
+
+        var candidate = Path.GetFullPath(path);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return string.Equals(candidate, _databasePath, comparison) ||
+            string.Equals(candidate, _databasePath + "-wal", comparison) ||
+            string.Equals(candidate, _databasePath + "-shm", comparison) ||
+            string.Equals(candidate, _databasePath + "-journal", comparison);
+    }
+
+    internal T ExecuteInTransaction<T>(Func<T> operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ThrowIfDisposed();
+        lock (_gate)
+        {
+            if (_activeTransaction is not null)
+            {
+                return operation();
+            }
+
+            using var transaction = _connection.BeginTransaction();
+            _activeTransaction = transaction;
+            try
+            {
+                var result = operation();
+                transaction.Commit();
+                return result;
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+            finally
+            {
+                _activeTransaction = null;
+            }
+        }
+    }
+
     /// <summary>Disposes the underlying SQLite connection.</summary>
     public void Dispose()
     {
@@ -334,7 +506,7 @@ public sealed class ProfileStore : IDisposable
 
     private void EnsureSchema()
     {
-        using var command = _connection.CreateCommand();
+        using var command = CreateCommand();
         command.CommandText = """
             PRAGMA user_version;
             """;
@@ -344,7 +516,7 @@ public sealed class ProfileStore : IDisposable
             return;
         }
 
-        using var migrate = _connection.CreateCommand();
+        using var migrate = CreateCommand();
         migrate.CommandText = """
             BEGIN;
             CREATE TABLE IF NOT EXISTS profile (
@@ -372,6 +544,14 @@ public sealed class ProfileStore : IDisposable
                 notes      TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_session_profile ON session_metadata(profile_id);
+            CREATE TABLE IF NOT EXISTS session_event (
+                sequence     INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id   INTEGER NOT NULL REFERENCES session_metadata(id) ON DELETE CASCADE,
+                captured_utc TEXT NOT NULL,
+                direction    INTEGER NOT NULL,
+                payload      BLOB NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_session_event_session ON session_event(session_id, sequence);
             PRAGMA user_version = {user_version};
             COMMIT;
             """;
@@ -384,7 +564,7 @@ public sealed class ProfileStore : IDisposable
 
     private string LastRowId()
     {
-        using var command = _connection.CreateCommand();
+        using var command = CreateCommand();
         command.CommandText = "SELECT last_insert_rowid();";
         return Convert.ToString(command.ExecuteScalar(), CultureInfo.InvariantCulture)!;
     }
@@ -417,4 +597,19 @@ public sealed class ProfileStore : IDisposable
 
     private void ThrowIfDisposed()
         => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    private SqliteCommand CreateCommand()
+    {
+        var command = _connection.CreateCommand();
+        command.Transaction = _activeTransaction;
+        return command;
+    }
 }
+
+/// <summary>An immutable logical view of all backup-relevant store rows.</summary>
+public sealed record ProfileStoreSnapshot(
+    IReadOnlyList<DeviceProfile> Profiles,
+    IReadOnlyList<StoredSessionSnapshot> Sessions);
+
+/// <summary>A session metadata row and its captured event snapshot.</summary>
+public sealed record StoredSessionSnapshot(SessionMetadata Metadata, IReadOnlyList<LogEvent> Events);

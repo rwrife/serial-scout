@@ -233,9 +233,9 @@
                      Text="{Binding Terminal.LogFilter}"
                      Watermark="Filter log (case-insensitive)"
                      AutomationProperties.Name="Filter log text" />
-            <Button Grid.Column="1" Content="Save log..." Margin="8,0,0,0"
-                    Click="OnSaveLog"
-                    AutomationProperties.Name="Save visible log to file" />
+            <Button Grid.Column="1" Content="Preview export..." Margin="8,0,0,0"
+                    Click="OnOpenPrivacy"
+                    AutomationProperties.Name="Open privacy preview for session export" />
             <TextBox Grid.Column="2" Width="260"
                      Text="{Binding Terminal.SendText}"
                      Watermark="Send text (Enter sends)"
@@ -246,6 +246,99 @@
             </TextBox>
           </Grid>
         </Grid>
+      </TabItem>
+
+      <!-- ===== Privacy / export ===== -->
+      <TabItem Header="Privacy &amp; Export">
+        <ScrollViewer Margin="0,8,0,0">
+          <StackPanel Spacing="12" MaxWidth="900" HorizontalAlignment="Left">
+            <TextBlock FontSize="18" Text="Local export, backup, and retention" />
+            <TextBlock Text="Nothing is uploaded. Redaction changes export copies only; stored originals remain unchanged."
+                       TextWrapping="Wrap" Opacity="0.85" />
+            <TextBlock Text="Session logs and profiles are stored in the local Serial Scout data directory. See README Privacy, storage, and retention for platform paths."
+                       TextWrapping="Wrap" Opacity="0.85" />
+
+            <Border BorderBrush="#607D8B" BorderThickness="1" CornerRadius="4" Padding="10">
+              <StackPanel Spacing="8">
+                <TextBlock FontSize="16" Text="Selected-session export" />
+                <Button Content="Refresh stored sessions" Click="OnRefreshPrivacySessions"
+                        HorizontalAlignment="Left" AutomationProperties.Name="Refresh locally stored sessions" />
+                <ComboBox ItemsSource="{Binding Privacy.Sessions}"
+                          SelectedItem="{Binding Privacy.SelectedSession}"
+                          DisplayMemberBinding="{Binding Label}"
+                          MinWidth="520"
+                          AutomationProperties.Name="Session to export" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <ComboBox ItemsSource="{Binding Privacy.RedactionPresetChoices}"
+                            SelectedIndex="{Binding Privacy.RedactionPresetIndex}"
+                            Width="200" AutomationProperties.Name="Redaction preset" />
+                  <ComboBox ItemsSource="{Binding Privacy.ExportFormatChoices}"
+                            SelectedIndex="{Binding Privacy.ExportFormatIndex}"
+                            Width="160" AutomationProperties.Name="Export format" />
+                  <Button Content="Create preview" Click="OnCreateExportPreview"
+                          AutomationProperties.Name="Create redacted export preview" />
+                </StackPanel>
+                <TextBox Text="{Binding Privacy.ExportPreviewText, Mode=OneWay}"
+                         IsReadOnly="True" AcceptsReturn="True" MinHeight="150" MaxHeight="260"
+                         FontFamily="Consolas,Menlo,monospace"
+                         Watermark="Preview appears here. No export is possible before review."
+                         AutomationProperties.Name="Exact export preview" />
+                <CheckBox IsChecked="{Binding Privacy.IsExportConfirmed}"
+                          Content="I reviewed this exact preview and want to export it"
+                          AutomationProperties.Name="Confirm reviewed export preview" />
+                <Button Content="Export reviewed copy..." Click="OnWriteExport"
+                        IsEnabled="{Binding Privacy.CanWriteExport}" HorizontalAlignment="Left"
+                        AutomationProperties.Name="Write confirmed export to local file" />
+              </StackPanel>
+            </Border>
+
+            <Border BorderBrush="#B26A00" BorderThickness="1" CornerRadius="4" Padding="10">
+              <StackPanel Spacing="8">
+                <TextBlock FontSize="16" Text="Sensitive backup and restore" />
+                <TextBlock Text="{Binding Privacy.BackupWarningText}" TextWrapping="Wrap" Foreground="#F0A040" />
+                <TextBlock Text="Exports and backups never overwrite existing files. Choose a new destination name; the active database and its sidecars are blocked."
+                           TextWrapping="Wrap" />
+                <Button Content="Create backup preview" Click="OnCreateBackupPreview"
+                        HorizontalAlignment="Left" AutomationProperties.Name="Preview sensitive local backup" />
+                <TextBox Text="{Binding Privacy.BackupPreviewText, Mode=OneWay}"
+                         IsReadOnly="True" AcceptsReturn="True" MinHeight="100" MaxHeight="220"
+                         FontFamily="Consolas,Menlo,monospace"
+                         Watermark="Versioned backup JSON appears here."
+                         AutomationProperties.Name="Exact sensitive backup preview" />
+                <CheckBox IsChecked="{Binding Privacy.IsSensitiveBackupConfirmed}"
+                          Content="I understand this backup contains sensitive raw data"
+                          AutomationProperties.Name="Acknowledge sensitive backup and restore data" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Content="Save confirmed backup..." Click="OnWriteBackup"
+                          IsEnabled="{Binding Privacy.CanWriteBackup}"
+                          AutomationProperties.Name="Write confirmed sensitive backup" />
+                  <Button Content="Restore backup as new records..." Click="OnRestoreBackup"
+                          AutomationProperties.Name="Validate and restore sensitive backup without overwriting" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <Border BorderBrush="#9C3B3B" BorderThickness="1" CornerRadius="4" Padding="10">
+              <StackPanel Spacing="8">
+                <TextBlock FontSize="16" Text="Session retention" />
+                <TextBlock Text="Applying retention permanently deletes older session metadata and raw traffic. Profiles are not deleted, and an active terminal session is always protected."
+                           TextWrapping="Wrap" />
+                <ComboBox ItemsSource="{Binding Privacy.RetentionCountChoices}"
+                          SelectedIndex="{Binding Privacy.RetentionCountIndex}"
+                          Width="180" HorizontalAlignment="Left"
+                          AutomationProperties.Name="Stored session retention limit" />
+                <CheckBox IsChecked="{Binding Privacy.IsRetentionConfirmed}"
+                          Content="I understand older sessions will be permanently deleted"
+                          AutomationProperties.Name="Confirm permanent session retention deletion" />
+                <Button Content="Apply retention now" Click="OnApplyRetention"
+                        HorizontalAlignment="Left" AutomationProperties.Name="Apply confirmed session retention" />
+              </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding Privacy.StatusText}" TextWrapping="Wrap"
+                       AutomationProperties.Name="Privacy operation status" />
+          </StackPanel>
+        </ScrollViewer>
       </TabItem>
     </TabControl>
   </DockPanel>

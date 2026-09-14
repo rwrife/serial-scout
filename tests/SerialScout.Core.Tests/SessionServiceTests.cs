@@ -354,6 +354,11 @@ public sealed class SessionServiceTests
         Assert.Equal(Port, open.PortPath);
         Assert.Null(open.EndedUtc);
 
+        await session.SendAsync("persisted");
+        var captured = Assert.Single(store.ListSessionEvents(open.Id));
+        Assert.Equal(LogEventDirection.Sent, captured.Direction);
+        Assert.Equal("persisted\n"u8.ToArray(), captured.Payload);
+
         await session.StopAsync();
 
         var closed = Assert.Single(store.ListSessions());

@@ -52,6 +52,41 @@ Developers and hardware hobbyists often switch between ESP32/RP2040/Arduino devi
 - **Sensitive data**: raw serial logs can include tokens or identifiers. Exports default to redaction helpers and explicit user review.
 - **Data ownership**: profile DB and logs are user-accessible and exportable.
 
+### Storage and retention details
+
+Serial Scout has no cloud account, sync, analytics, or network export path. Its only
+durable application data is `profiles.sqlite`, including profiles, session metadata,
+and raw RX/TX event bytes:
+
+- Windows: `%LOCALAPPDATA%\SerialScout\profiles.sqlite`
+- macOS and other Unix hosts: `~/.local/share/serial-scout/profiles.sqlite`
+
+The live terminal also keeps a bounded in-memory rolling view (1 MiB of payload by
+default); that view disappears when the process exits. Durable sessions are retained
+until the user opens **Privacy & Export**, chooses a newest-session limit, acknowledges
+that older raw traffic will be permanently deleted, and applies retention. Deleting a
+profile does not delete its sessions; those sessions become unbound.
+
+Selected-session export is always local and requires an explicit preview and
+confirmation. Plaintext uses stable UTC timestamp/RX/TX lines. JSON uses the documented
+`formatVersion: 1` envelope with `session` metadata and ordered `events` (`utc`,
+`direction`, `text`). Token, IP/MAC, path, and share-safe presets transform export
+copies only; stored raw bytes are never edited. Redacted exports retain every original
+event timestamp and direction. A marker is placed in the first event containing the
+redacted value, and later events fully consumed by that match remain present with empty
+text.
+
+Profile/session backups use versioned JSON and include raw event payloads. They should
+be treated as sensitive: the UI shows the exact document and requires acknowledgement
+before save or restore. Restore treats files as untrusted, rejects unknown fields,
+unsupported versions, malformed values, and oversized collections, assigns new local
+IDs, and skips/report profile-name conflicts rather than overwriting existing data.
+Export and backup saves never overwrite an existing destination; they stage a complete
+file in the destination directory before an atomic no-clobber rename. The active
+`profiles.sqlite` database and its `-wal`, `-shm`, and `-journal` sidecars are blocked
+as destinations. Retention also protects the active terminal session even when it is
+older than the selected newest-session count.
+
 ## Current status
 
 The .NET 8 solution, Avalonia desktop shell, core library, test project, and
@@ -59,8 +94,8 @@ cross-platform CI baseline are in place. Cross-platform serial discovery is impl
 in `SerialScout.Core.Discovery` (Windows PnP + macOS ioreg adapters with a normalized
 port model and explicit scan states); see
 [docs/discovery-metadata.md](docs/discovery-metadata.md) for per-OS metadata limits.
-Profile matching, session engine, and production workflows remain under active
-development; there are no binary releases or compatibility claims yet.
+Profile matching, session capture, local privacy/export, and backup workflows are
+implemented; there are no binary releases or compatibility claims yet.
 
 ## Milestones
 
