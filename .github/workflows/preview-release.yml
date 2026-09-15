@@ -1,27 +1,46 @@
-name: CI
+name: Preview release
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
+    tags:
+      - 'v*.*.*-preview.*'
 
 permissions:
   contents: read
 
 jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Validate preview tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=${GITHUB_REF_NAME#v}
+          if [[ $GITHUB_REF_NAME == "$version" ]] || ! ./scripts/release-version.sh "$version"; then
+            echo "Expected strict SemVer tag vMAJOR.MINOR.PATCH-preview.ID" >&2
+            exit 2
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
   release-script-tests:
     name: Release script regression tests
+    needs: validate-tag
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-
       - name: Test release validation scripts
         run: ./scripts/test-release-scripts.sh
 
-  build-and-test:
-    name: ${{ matrix.os }}
+  quality:
+    name: Build and test (${{ matrix.evidence }})
+    needs: validate-tag
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -31,39 +50,33 @@ jobs:
             evidence: windows
           - os: macos-15
             evidence: macos-arm64
-
     steps:
       - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-
       - name: Set up .NET 8
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 8.0.x
           cache: true
           cache-dependency-path: '**/packages.lock.json'
-
-      - name: Restore locked dependencies
+      - name: Restore locked dependencies and capture log
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/verification
           dotnet restore SerialScout.sln --locked-mode 2>&1 | tee artifacts/verification/restore-${{ matrix.evidence }}.log
-
-      - name: Verify formatting
+      - name: Verify formatting and capture log
         shell: bash
         run: |
           set -euo pipefail
           dotnet format SerialScout.sln --verify-no-changes --no-restore 2>&1 | tee artifacts/verification/format-${{ matrix.evidence }}.log
-
-      - name: Build
+      - name: Build and capture log
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/verification
           dotnet build SerialScout.sln --configuration Release --no-restore 2>&1 | tee artifacts/verification/build-${{ matrix.evidence }}.log
-
-      - name: Test
+      - name: Test and capture TRX
         shell: bash
         run: |
           set -euo pipefail
@@ -77,7 +90,6 @@ jobs:
             --logger "trx;LogFileName=${{ matrix.evidence }}-app.trx" \
             --results-directory artifacts/verification \
             2>&1 | tee -a artifacts/verification/test-${{ matrix.evidence }}.log
-
       - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -86,10 +98,12 @@ jobs:
           path: artifacts/verification
           if-no-files-found: error
 
-  package-gate:
+  package:
     name: Package and smoke (${{ matrix.rid }})
-    if: github.event_name == 'pull_request'
-    needs: release-script-tests
+    needs:
+      - validate-tag
+      - quality
+      - release-script-tests
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -101,18 +115,15 @@ jobs:
             rid: osx-x64
           - os: macos-15
             rid: osx-arm64
-
     steps:
       - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-
       - name: Set up .NET 8
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 8.0.x
           cache: true
           cache-dependency-path: '**/packages.lock.json'
-
       - name: Package Windows
         if: matrix.rid == 'win-x64'
         shell: pwsh
@@ -120,41 +131,81 @@ jobs:
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
           New-Item -ItemType Directory -Force artifacts/verification | Out-Null
-          & ./scripts/package-windows.ps1 -Version "0.0.0-preview.pr${{ github.event.pull_request.number }}" *>&1 |
+          & ./scripts/package-windows.ps1 -Version "${{ needs.validate-tag.outputs.version }}" *>&1 |
             Tee-Object artifacts/verification/package-${{ matrix.rid }}.log
-
       - name: Smoke Windows package
         if: matrix.rid == 'win-x64'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          & ./scripts/smoke-windows.ps1 -Package artifacts/release/SerialScout-0.0.0-preview.pr${{ github.event.pull_request.number }}-win-x64.zip *>&1 |
+          & ./scripts/smoke-windows.ps1 -Package "artifacts/release/SerialScout-${{ needs.validate-tag.outputs.version }}-win-x64.zip" *>&1 |
             Tee-Object artifacts/verification/smoke-${{ matrix.rid }}.log
-
       - name: Package macOS
         if: startsWith(matrix.rid, 'osx-')
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/verification
-          ./scripts/package-macos.sh "0.0.0-preview.pr${{ github.event.pull_request.number }}" "${{ matrix.rid }}" \
+          ./scripts/package-macos.sh "${{ needs.validate-tag.outputs.version }}" "${{ matrix.rid }}" \
             2>&1 | tee artifacts/verification/package-${{ matrix.rid }}.log
-
       - name: Smoke macOS package
         if: startsWith(matrix.rid, 'osx-')
         shell: bash
         run: |
           set -euo pipefail
-          ./scripts/smoke-macos.sh "artifacts/release/SerialScout-0.0.0-preview.pr${{ github.event.pull_request.number }}-${{ matrix.rid }}.dmg" \
+          ./scripts/smoke-macos.sh "artifacts/release/SerialScout-${{ needs.validate-tag.outputs.version }}-${{ matrix.rid }}.dmg" \
             2>&1 | tee artifacts/verification/smoke-${{ matrix.rid }}.log
-
-      - name: Upload package-gate evidence
+      - name: Upload release inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-${{ matrix.rid }}
+          path: |
+            artifacts/release/SerialScout-${{ needs.validate-tag.outputs.version }}-${{ matrix.rid }}.*
+          if-no-files-found: error
+      - name: Upload package evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: package-gate-${{ matrix.rid }}
-          path: |
-            artifacts/release
-            artifacts/verification
+          name: package-evidence-${{ matrix.rid }}
+          path: artifacts/verification
           if-no-files-found: error
+
+  publish:
+    name: Verify and publish preview
+    needs:
+      - validate-tag
+      - package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Download only release inputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: release-*
+          path: artifacts/release
+          merge-multiple: true
+      - name: Generate checksums and verify exact release set
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/release
+          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -printf '%f\n' |
+            LC_ALL=C sort |
+            xargs sha256sum > SHA256SUMS.txt
+          cd ../..
+          ./scripts/verify-release-assets.sh "${{ needs.validate-tag.outputs.version }}" artifacts/release "$GITHUB_SHA"
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" artifacts/release/* \
+            --verify-tag \
+            --prerelease \
+            --title "Serial Scout $GITHUB_REF_NAME" \
+            --notes-file docs/preview-release-notes.md
