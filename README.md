@@ -95,7 +95,74 @@ in `SerialScout.Core.Discovery` (Windows PnP + macOS ioreg adapters with a norma
 port model and explicit scan states); see
 [docs/discovery-metadata.md](docs/discovery-metadata.md) for per-OS metadata limits.
 Profile matching, session capture, local privacy/export, and backup workflows are
-implemented; there are no binary releases or compatibility claims yet.
+implemented. Preview packages are produced by native Windows and macOS release gates;
+the limitations below remain part of the preview compatibility contract.
+
+## Preview downloads and installation
+
+Preview builds are self-contained: installing the .NET SDK is not required. Download
+the package for your CPU from the
+[GitHub Releases page](https://github.com/rwrife/serial-scout/releases). Every preview
+also includes `SHA256SUMS.txt` and a provenance record for each package. Verify the
+package hash against the matching line in `SHA256SUMS.txt` before running it.
+
+### Windows 10/11 x64 (portable ZIP)
+
+1. Download `SerialScout-VERSION-win-x64.zip`, extract it to a user-writable folder,
+   and run `SerialScout.App.exe`. Keep all extracted files together.
+2. Windows SmartScreen may warn because preview binaries are unsigned. Choose **More
+   info** and **Run anyway** only after verifying the checksum and that the download
+   came from this repository. No administrator access is required.
+3. Windows may install a vendor USB-serial driver when a board is first attached. If a
+   port is missing, check Device Manager; if it is busy, close other terminal/IDE tools.
+
+PowerShell checksum example:
+
+```powershell
+Get-FileHash .\SerialScout-VERSION-win-x64.zip -Algorithm SHA256
+Select-String 'SerialScout-VERSION-win-x64.zip' .\SHA256SUMS.txt
+```
+
+### macOS 12+ (DMG)
+
+Choose `osx-arm64` for Apple silicon or `osx-x64` for an Intel Mac. Open the DMG and
+drag **Serial Scout.app** to Applications. Preview apps are only ad-hoc signed, not
+Developer ID signed or notarized, so Gatekeeper may block the first launch. After
+verifying the checksum and source, Control-click the app, choose **Open**, then confirm.
+If macOS still retains the quarantine prompt, advanced users can remove it explicitly:
+
+```bash
+xattr -dr com.apple.quarantine '/Applications/Serial Scout.app'
+```
+
+That command weakens a macOS safety check for this app; do not use it on an unverified
+download. Serial access uses `/dev/cu.*` devices and should not require administrator
+access. Close other programs holding the device and install only the USB-serial driver
+provided by the board/chip vendor when macOS does not create a port.
+
+Checksum example:
+
+```bash
+shasum -a 256 SerialScout-VERSION-osx-arm64.dmg
+grep 'SerialScout-VERSION-osx-arm64.dmg' SHA256SUMS.txt
+```
+
+### Preview limitations and troubleshooting
+
+- Windows packages are unsigned. macOS apps are ad-hoc signed but not notarized; both
+  platforms can show reputation or security prompts.
+- macOS serial discovery/backend compatibility remains unresolved in
+  [issue #12](https://github.com/rwrife/serial-scout/issues/12). A successful package
+  smoke check does not claim that real serial hardware works on macOS.
+- CI verifies launch-free SQLite persistence from the packaged executable. It cannot
+  automate GUI interaction, device drivers, unplug/replug behavior, busy-port recovery,
+  or real RX/TX with the wide range of USB serial chipsets. Those are manual checks.
+- The application is local-only: no account, network service, cloud storage, telemetry,
+  or elevated privileges are needed. Profile/session data locations are documented
+  above. Delete that directory to reset local state after first closing the app.
+
+For release evidence and the complete operator checklist, see
+[docs/release-checklist.md](docs/release-checklist.md).
 
 ## Milestones
 
@@ -123,4 +190,8 @@ dotnet test SerialScout.sln --configuration Release --no-build
 dotnet run --project src/SerialScout.App/SerialScout.App.csproj
 ```
 
-CI runs formatting, build, and test checks on both Windows and macOS.
+CI runs formatting, build, and test checks on Windows and Apple silicon macOS. Pull
+requests additionally create and smoke the Windows x64, macOS Intel, and macOS Apple
+silicon packages on matching native runners. Maintainers can reproduce those packages
+with `scripts/package-windows.ps1` or `scripts/package-macos.sh`; see the release
+checklist for exact commands and evidence expectations.

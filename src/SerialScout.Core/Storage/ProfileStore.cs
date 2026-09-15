@@ -45,6 +45,9 @@ public sealed class ProfileStore : IDisposable
         {
             DataSource = _databasePath,
             Mode = SqliteOpenMode.ReadWriteCreate,
+            // ProfileStore owns one long-lived connection. Disabling the global pool
+            // also makes disposal release temporary smoke/backup files immediately on Windows.
+            Pooling = false,
         }.ToString());
         _connection.Open();
         using (var foreignKeys = CreateCommand())
