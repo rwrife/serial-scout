@@ -92,8 +92,11 @@ and correctly rejects the all-RID lockfile.
   expected unsigned SmartScreen flow, open the GUI, save/reopen a profile, and test a
   representative physical serial adapter including RX/TX and busy-port recovery.
 - On clean Intel and Apple silicon Macs, mount the DMG, drag the app to Applications,
-  review the expected Gatekeeper flow, open the GUI, and record the result. Exercise
-  physical hardware only as exploratory evidence while issue #12 is unresolved.
+  review the expected Gatekeeper flow, open the GUI, and record the result. With a
+  representative physical adapter, test RX/TX, timeout, cancellation, unplug/replug,
+  busy-port recovery, and automatic reconnect. For reset-sensitive boards, observe DTR/RTS
+  during open, close, and reconnect: the app clears termios modem-flow and `HUPCL` flags but
+  cannot prevent every driver or adapter from pulsing control lines.
 - Check app naming/version display and confirm no network request, account prompt,
   telemetry, administrator prompt, or unexpected storage location appears.
 - Record OS version, CPU, USB serial chipset/driver, GUI result, hardware result, and
@@ -102,7 +105,8 @@ and correctly rejects the all-RID lockfile.
 Known preview limitations:
 
 - Windows is unsigned; macOS is ad-hoc signed and not notarized.
-- macOS serial backend issue #12 is unresolved.
+- Native macOS PTY tests do not verify physical USB-serial chipsets, vendor drivers,
+  electrical behavior, DTR/RTS pulses, or board reset behavior.
 - Automated checks do not cover GUI interaction, Gatekeeper/SmartScreen user flows,
   physical attach/detach, drivers, device contention, or real serial traffic.
 - Only Windows x64 and macOS x64/arm64 are packaged. There is no installer, automatic

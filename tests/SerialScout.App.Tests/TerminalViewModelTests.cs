@@ -1,5 +1,6 @@
 using SerialScout.App.ViewModels;
 using SerialScout.Core.Profiles;
+using SerialScout.Core.Sessions.Posix;
 
 namespace SerialScout.App.Tests;
 
@@ -50,6 +51,31 @@ public sealed class TerminalViewModelTests
 
         vm.RefreshLog();
         Assert.Contains("TX AT", vm.LogText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PersistedUnsupportedMacOSBaudSurfacesStructuredOpenFailure()
+    {
+        using var store = new Core.Storage.ProfileStore(":memory:");
+        using var vm = new TerminalViewModel(
+            new MacosSerialLinkFactory(),
+            store,
+            _ => { },
+            ProfileEditorViewModel.MacosBaudRateChoices);
+        vm.BindDevice(
+            "/dev/cu.persisted",
+            new DeviceProfile
+            {
+                Name = "Legacy high baud",
+                Rule = new ProfileMatchRule(1, 2),
+                LineSettings = new LineSettings(460800),
+            });
+
+        await vm.ConnectAsync();
+
+        Assert.Contains("[failed] Connect failed:", vm.StatusText, StringComparison.Ordinal);
+        Assert.Contains("460800", vm.StatusText, StringComparison.Ordinal);
+        Assert.Contains("not supported", vm.StatusText, StringComparison.Ordinal);
     }
 
     [Fact]

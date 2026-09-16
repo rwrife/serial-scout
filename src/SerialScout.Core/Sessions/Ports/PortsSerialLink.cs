@@ -10,9 +10,9 @@ namespace SerialScout.Core.Sessions.Ports;
 /// <list type="bullet">
 /// <item>Reads are synchronous inside a worker task with <see cref="SerialPort.ReadTimeout"/>
 /// set from the engine's poll timeout, so a blocked read always returns within the timeout.
-/// This keeps stop/reconnect latency bounded on every OS, at the cost of a thread-pool hop
+/// This keeps stop/reconnect latency bounded on Windows, at the cost of a thread-pool hop
 /// per poll tick. The cancellation token is honored between ticks and before starting an
-/// OS read, not mid-OS-read (tracked for a native rework in issue #12).</item>
+/// OS read, not mid-OS-read.</item>
 /// <item><see cref="DtrEnable"/> and <see cref="RtsEnable"/> stay <see langword="false"/>:
 /// asserting them on open can reset attached boards, so they are opt-in by callers later.</item>
 /// <item>A vanished device surfaces as <see cref="LinkDisconnectedException"/> so the
@@ -21,11 +21,8 @@ namespace SerialScout.Core.Sessions.Ports;
 /// </list>
 /// <remarks>
 /// <para>
-/// <c>System.IO.Ports</c> is fully supported by Microsoft on Windows only; the Unix/macOS
-/// implementation in the runtime is explicitly "not recommended for production use". It is
-/// good enough for preview builds on those platforms (it opens and exchanges data with the
-/// common USB-serial drivers), and issue #12 tracks replacing it with a native termios
-/// backend for macOS.
+/// Application composition selects this adapter on Windows only. macOS uses the native
+/// Darwin termios adapter and never constructs this type.
 /// </para>
 /// </remarks>
 public sealed class PortsSerialLink : ISerialLink

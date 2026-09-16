@@ -2,7 +2,9 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using SerialScout.Core.Discovery;
 using SerialScout.Core.Profiles;
+using SerialScout.Core.Sessions;
 using SerialScout.Core.Sessions.Ports;
+using SerialScout.Core.Sessions.Posix;
 using SerialScout.Core.Storage;
 
 namespace SerialScout.App.ViewModels;
@@ -28,7 +30,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     /// <param name="store">Opened local profile store (pass <c>:memory:</c>-backed stores in tests).</param>
     /// <param name="discovery">Active-platform discovery adapter.</param>
     /// <param name="utcNow">Clock injected into matching/preview panes.</param>
-    public MainViewModel(ProfileStore store, ISerialDiscovery discovery, Func<DateTimeOffset>? utcNow = null)
+    public MainViewModel(
+        ProfileStore store,
+        ISerialDiscovery discovery,
+        Func<DateTimeOffset>? utcNow = null,
+        ISerialLinkFactory? linkFactory = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(discovery);
@@ -36,9 +42,15 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _store = store;
         _reportError = ReportErrorCore;
 
+        var activeLinkFactory = linkFactory ?? new PortsSerialLinkFactory();
+        var baudRateChoices = activeLinkFactory is MacosSerialLinkFactory
+            ? ProfileEditorViewModel.MacosBaudRateChoices
+            : ProfileEditorViewModel.SharedBaudRateChoices;
         Devices = new DeviceListViewModel(discovery, _store, _reportError, _utcNow);
-        Editor = new ProfileEditorViewModel(_store, _reportError, _utcNow);
-        Terminal = new TerminalViewModel(new PortsSerialLinkFactory(), _store, _reportError);
+        Editor = new ProfileEditorViewModel(
+            _store, _reportError, _utcNow, baudRateChoices: baudRateChoices);
+        Terminal = new TerminalViewModel(
+            activeLinkFactory, _store, _reportError, baudRateChoices);
         Privacy = new PrivacyViewModel(_store, _reportError, () => Terminal.ActiveSessionId);
 
         Devices.SelectedDeviceChangedHook = OnDeviceSelected;

@@ -1,9 +1,8 @@
 namespace SerialScout.Core.Sessions;
 
 /// <summary>
-/// Creates the OS-facing serial link for a port path. Production builds inject an
-/// adapter over <c>System.IO.Ports.SerialPort</c>; tests inject fakes so the engine is
-/// exercised on CI hosts with no hardware.
+/// Creates the OS-facing serial link for a port path. Application composition selects
+/// the Windows System.IO.Ports adapter or the native macOS termios adapter.
 /// </summary>
 public interface ISerialLinkFactory
 {

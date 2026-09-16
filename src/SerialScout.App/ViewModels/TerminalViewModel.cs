@@ -35,18 +35,24 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
     private int _baudIndex = 4; // 115200 in the shared choice list
     private long? _profileId;
     private string? _profileName;
+    private int? _boundProfileBaudRate;
 
     /// <summary>Creates the terminal pane.</summary>
     /// <param name="linkFactory">Production (or test) serial link factory.</param>
     /// <param name="store">Local store receiving session metadata rows; optional.</param>
     /// <param name="reportError">Receives connect/send failure messages.</param>
-    public TerminalViewModel(ISerialLinkFactory linkFactory, ProfileStore? store, Action<string> reportError)
+    public TerminalViewModel(
+        ISerialLinkFactory linkFactory,
+        ProfileStore? store,
+        Action<string> reportError,
+        IReadOnlyList<string>? baudRateChoices = null)
     {
         ArgumentNullException.ThrowIfNull(linkFactory);
         ArgumentNullException.ThrowIfNull(reportError);
         _linkFactory = linkFactory;
         _store = store;
         _reportError = reportError;
+        BaudRateChoices = baudRateChoices ?? ProfileEditorViewModel.SharedBaudRateChoices;
 
         ConnectCommand = new AsyncRelayCommand(ConnectAsync, _reportError, () => CanStartSession);
         DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, _reportError, () => _session is not null);
@@ -55,7 +61,7 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>Baud-rate choices offered by the terminal.</summary>
-    public IReadOnlyList<string> BaudRateChoices { get; } = ProfileEditorViewModel.SharedBaudRateChoices;
+    public IReadOnlyList<string> BaudRateChoices { get; }
 
     /// <summary>Line-ending choices in enum order (None, LF, CR, CRLF).</summary>
     public IReadOnlyList<string> LineEndingChoices { get; } = ProfileEditorViewModel.SharedLineEndingChoices;
@@ -134,7 +140,13 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
     public int BaudIndex
     {
         get => _baudIndex;
-        set => SetProperty(ref _baudIndex, value);
+        set
+        {
+            if (SetProperty(ref _baudIndex, value))
+            {
+                _boundProfileBaudRate = null;
+            }
+        }
     }
 
     /// <summary>Profile id whose defaults bound this session, when known.</summary>
@@ -205,12 +217,17 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
         PortPath = portPath.Trim();
         ProfileId = profile?.Id;
         ProfileName = profile?.Name;
+        _boundProfileBaudRate = null;
         if (profile is not null)
         {
             var index = IndexOf(BaudRateChoices, profile.LineSettings.BaudRate);
             if (index >= 0)
             {
                 BaudIndex = index;
+            }
+            else
+            {
+                _boundProfileBaudRate = profile.LineSettings.BaudRate;
             }
         }
 
@@ -233,7 +250,8 @@ public sealed class TerminalViewModel : ViewModelBase, IDisposable
         var options = new SessionOptions
         {
             PortPath = PortPath.Trim(),
-            LineSettings = new LineSettings(ParseBaud(BaudRateChoices[BaudIndex])),
+            LineSettings = new LineSettings(
+                _boundProfileBaudRate ?? ParseBaud(BaudRateChoices[BaudIndex])),
             LineEnding = SelectedLineEnding,
             ProfileId = ProfileId,
             AutoReconnect = AutoReconnect,

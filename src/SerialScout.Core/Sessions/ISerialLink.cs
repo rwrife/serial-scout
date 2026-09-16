@@ -3,9 +3,8 @@ using SerialScout.Core.Profiles;
 namespace SerialScout.Core.Sessions;
 
 /// <summary>
-/// OS-independent view of one opened serial link. The production implementation wraps
-/// <c>System.IO.Ports.SerialPort</c>; tests inject a fake so the whole session engine
-/// runs on Linux CI hosts without real hardware.
+/// OS-independent view of one opened serial link. Production uses System.IO.Ports on
+/// Windows and native Darwin termios on macOS; tests inject host-safe fakes.
 /// </summary>
 public interface ISerialLink : IDisposable
 {
