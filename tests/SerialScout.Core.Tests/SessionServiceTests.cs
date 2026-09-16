@@ -1,6 +1,7 @@
 using System.Text;
 using SerialScout.Core.Profiles;
 using SerialScout.Core.Sessions;
+using SerialScout.Core.Sessions.Posix;
 using SerialScout.Core.Storage;
 
 namespace SerialScout.Core.Tests;
@@ -63,6 +64,24 @@ public sealed class SessionServiceTests
         Assert.Equal(SessionEventReasons.OpenFailed, failed.Reason);
         Assert.Equal("permission denied", failed.Detail);
         Assert.Equal(1, link.DisposeCount);
+    }
+
+    [Fact]
+    public async Task UnsupportedDarwinBaudEmitsStructuredOpenFailure()
+    {
+        var options = Options(lineSettings: new LineSettings(460800));
+
+        var result = await SessionService.StartAsync(
+            options,
+            new MacosSerialLinkFactory(),
+            utcNow: UtcNow);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(SessionState.Failed, result.Service.State);
+        var events = await ReadUntilAsync(result.Service, e => e.Type == SessionEventType.Failed);
+        var failed = Assert.Single(events);
+        Assert.Equal(SessionEventReasons.OpenFailed, failed.Reason);
+        Assert.Contains("460800", failed.Detail, StringComparison.Ordinal);
     }
 
     [Fact]

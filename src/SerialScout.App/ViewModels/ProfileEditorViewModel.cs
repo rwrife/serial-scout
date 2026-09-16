@@ -51,7 +51,8 @@ public sealed class ProfileEditorViewModel : ViewModelBase
         ProfileStore store,
         Action<string> reportError,
         Func<DateTimeOffset>? utcNow = null,
-        ProfileMatcher? matcher = null)
+        ProfileMatcher? matcher = null,
+        IReadOnlyList<string>? baudRateChoices = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(reportError);
@@ -59,13 +60,14 @@ public sealed class ProfileEditorViewModel : ViewModelBase
         _reportError = reportError;
         _utcNow = utcNow ?? (static () => DateTimeOffset.UtcNow);
         _matcher = matcher ?? new ProfileMatcher();
+        BaudRateChoices = baudRateChoices ?? SharedBaudRateChoices;
         SaveCommand = new AsyncRelayCommand(SaveAsync, _reportError);
         DeleteCommand = new AsyncRelayCommand(DeleteAsync, _reportError);
         ResetCommand = new RelayCommand(_ => ResetToNew());
     }
 
     /// <summary>Baud-rate choices offered by the editor.</summary>
-    public IReadOnlyList<string> BaudRateChoices { get; } = SharedBaudRateChoices;
+    public IReadOnlyList<string> BaudRateChoices { get; }
 
     /// <summary>Data-bit choices offered by the editor.</summary>
     public IReadOnlyList<int> DataBitsChoices { get; } = SharedDataBitsChoices;
@@ -82,6 +84,10 @@ public sealed class ProfileEditorViewModel : ViewModelBase
     /// <summary>Shared baud-rate choice list (instance properties above expose it for binding).</summary>
     public static IReadOnlyList<string> SharedBaudRateChoices { get; } =
         ["9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"];
+
+    /// <summary>Standard baud rates supported by the native Darwin termios backend.</summary>
+    public static IReadOnlyList<string> MacosBaudRateChoices { get; } =
+        ["9600", "19200", "38400", "57600", "115200", "230400"];
 
     /// <summary>Shared data-bit choice list.</summary>
     public static IReadOnlyList<int> SharedDataBitsChoices { get; } = [5, 6, 7, 8];

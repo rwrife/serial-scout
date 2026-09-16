@@ -23,7 +23,10 @@ public partial class App : Application
         {
             InstallUiScheduler();
             desktop.MainWindow = new MainWindow(
-                new MainViewModel(new ProfileStore(DefaultDatabasePath()), CreateDiscovery()));
+                new MainViewModel(
+                    new ProfileStore(DefaultDatabasePath()),
+                    CreateDiscovery(),
+                    linkFactory: AppPlatform.CreateSerialLinkFactory()));
         }
 
         base.OnFrameworkInitializationCompleted();

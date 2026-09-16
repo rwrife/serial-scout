@@ -23,12 +23,15 @@ jobs:
   build-and-test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             evidence: windows
+          - os: macos-15-intel
+            evidence: macos-x64
           - os: macos-15
             evidence: macos-arm64
 

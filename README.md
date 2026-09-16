@@ -140,6 +140,25 @@ download. Serial access uses `/dev/cu.*` devices and should not require administ
 access. Close other programs holding the device and install only the USB-serial driver
 provided by the board/chip vendor when macOS does not create a port.
 
+macOS sessions use a native Darwin `termios`/`poll` backend, not `System.IO.Ports`.
+The serial descriptor is opened with exclusive tty ownership and is nonblocking. Blocked
+reads/writes poll in slices of at most 25 ms, so cancellation and close are observed within
+one OS poll slice plus thread scheduling delay. The tradeoff is that each blocked operation
+occupies one worker and wakes to check its flags every 25 ms. The macOS UI offers standard
+baud rates through 230400; a saved profile containing an incompatible higher rate fails
+through the normal structured open-failure path. The backend requests raw local mode,
+enables the receiver, and enables input parity checking for even/odd parity (while
+disabling it for no parity). It clears all hardware-flow-control flags and `HUPCL`; Serial
+Scout does not explicitly assert DTR or RTS.
+
+With parity checking enabled, Darwin represents parity or framing error bytes as NUL in
+this raw configuration; Serial Scout stores those received bytes unchanged. These settings
+reduce avoidable control-line transitions, but opening or closing a serial device can still
+make a driver or USB-serial adapter pulse DTR/RTS. Some Arduino-class boards interpret
+that pulse as reset. Software cannot promise pulse-free open across all drivers and
+adapters, and automatic reconnect necessarily opens the device again. Test reset-sensitive
+hardware deliberately and disable auto-reconnect when an unexpected reset would be unsafe.
+
 Checksum example:
 
 ```bash
@@ -151,9 +170,9 @@ grep 'SerialScout-VERSION-osx-arm64.dmg' SHA256SUMS.txt
 
 - Windows packages are unsigned. macOS apps are ad-hoc signed but not notarized; both
   platforms can show reputation or security prompts.
-- macOS serial discovery/backend compatibility remains unresolved in
-  [issue #12](https://github.com/rwrife/serial-scout/issues/12). A successful package
-  smoke check does not claim that real serial hardware works on macOS.
+- Native CI exercises the macOS backend with a pseudo-terminal, including line settings,
+  RX/TX, timeout, cancellation, and hangup. This is not physical-device verification and
+  does not establish compatibility with any USB-serial chipset, vendor driver, or board.
 - CI verifies launch-free SQLite persistence from the packaged executable. It cannot
   automate GUI interaction, device drivers, unplug/replug behavior, busy-port recovery,
   or real RX/TX with the wide range of USB serial chipsets. Those are manual checks.

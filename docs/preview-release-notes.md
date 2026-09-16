@@ -5,8 +5,8 @@ silicon (`osx-arm64`) Mac. Verify the download with `SHA256SUMS.txt`; the adjace
 provenance file records its source commit, tag, SDK, runner, RID, and signature status.
 
 Windows binaries are unsigned. macOS apps are ad-hoc signed but not notarized. Security
-or reputation prompts are expected. macOS serial backend issue #12 remains unresolved,
-and automated smoke checks cover packaged SQLite persistence without opening serial
-hardware; they do not cover GUI interaction, drivers, physical devices, or RX/TX.
+or reputation prompts are expected. The native macOS serial backend is covered by PTY
+tests, while automated smoke checks cover packaged SQLite persistence without opening
+serial hardware; they do not cover GUI interaction, drivers, physical devices, or RX/TX.
 
 See the repository README for installation, permissions, and troubleshooting details.
