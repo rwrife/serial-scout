@@ -141,7 +141,10 @@ access. Close other programs holding the device and install only the USB-serial 
 provided by the board/chip vendor when macOS does not create a port.
 
 macOS sessions use a native Darwin `termios`/`poll` backend, not `System.IO.Ports`.
-The serial descriptor is opened with exclusive tty ownership and is nonblocking. Blocked
+The serial descriptor requests exclusive tty ownership (`TIOCEXCL`) and is nonblocking.
+Exclusivity enforcement is driver-dependent: hosted Darwin PTYs can permit another
+open even when the ioctl succeeds. Close other serial tools before connecting;
+physical USB-driver exclusivity remains a manual check. Blocked
 reads/writes poll in slices of at most 25 ms, so cancellation and close are observed within
 one OS poll slice plus thread scheduling delay. The tradeoff is that each blocked operation
 occupies one worker and wakes to check its flags every 25 ms. The macOS UI offers standard

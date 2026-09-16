@@ -66,6 +66,14 @@ jobs:
           mkdir -p artifacts/verification
           dotnet build SerialScout.sln --configuration Release --no-restore 2>&1 | tee artifacts/verification/build-${{ matrix.evidence }}.log
 
+      - name: Record native macOS PTY exclusivity behavior
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          clang -Wall -Wextra -Werror scripts/probe-macos-pty.c -o "$RUNNER_TEMP/probe-macos-pty"
+          "$RUNNER_TEMP/probe-macos-pty" | tee artifacts/verification/pty-native-${{ matrix.evidence }}.log
+
       - name: Test
         shell: bash
         run: |
