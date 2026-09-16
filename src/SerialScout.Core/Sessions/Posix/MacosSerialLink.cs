@@ -15,6 +15,7 @@ public sealed class MacosSerialLink : ISerialLink
 
     private readonly object _sync = new();
     private readonly IDarwinNativeApi _api;
+    private readonly Func<long> _tickCount = static () => Environment.TickCount64;
     private readonly bool _enforceMacOS;
     private readonly HashSet<OperationContext> _operations = [];
 
@@ -30,9 +31,10 @@ public sealed class MacosSerialLink : ISerialLink
     {
     }
 
-    internal MacosSerialLink(string portPath, IDarwinNativeApi api)
+    internal MacosSerialLink(string portPath, IDarwinNativeApi api, Func<long>? tickCount = null)
         : this(portPath, api, enforceMacOS: false)
     {
+        _tickCount = tickCount ?? _tickCount;
     }
 
     private MacosSerialLink(string portPath, IDarwinNativeApi api, bool enforceMacOS)
@@ -201,7 +203,7 @@ public sealed class MacosSerialLink : ISerialLink
             (long)Math.Ceiling(timeout.TotalMilliseconds),
             0,
             int.MaxValue);
-        var deadline = Environment.TickCount64 + timeoutMilliseconds;
+        var deadline = _tickCount() + timeoutMilliseconds;
         var buffer = new byte[ReadBufferSize];
 
         while (true)
@@ -311,7 +313,7 @@ public sealed class MacosSerialLink : ISerialLink
     {
         var deadline = timeoutMilliseconds == Timeout.Infinite
             ? long.MaxValue
-            : Environment.TickCount64 + timeoutMilliseconds;
+            : _tickCount() + timeoutMilliseconds;
         var firstPoll = true;
 
         while (true)
@@ -464,8 +466,8 @@ public sealed class MacosSerialLink : ISerialLink
             DarwinConstants.BadDescriptor or
             DarwinConstants.NoDevice;
 
-    private static int RemainingMilliseconds(long deadline)
-        => checked((int)Math.Clamp(deadline - Environment.TickCount64, 0, int.MaxValue));
+    private int RemainingMilliseconds(long deadline)
+        => checked((int)Math.Clamp(deadline - _tickCount(), 0, int.MaxValue));
 
     private sealed class OperationContext : IDisposable
     {

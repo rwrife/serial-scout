@@ -149,27 +149,26 @@ public sealed class MacosSerialLinkTests
     public async Task ReadAsyncRecomputesTimeoutAfterInterruptedPoll()
     {
         var api = new FakeDarwinNativeApi { LastError = DarwinConstants.Interrupted };
+        long ticks = 1000;
         var calls = 0;
         api.PollHandler = (_, timeout) =>
         {
             if (calls++ == 0)
             {
-                Thread.Sleep(20);
+                ticks += 80;
                 return -1;
             }
 
-            Thread.Sleep(timeout);
+            ticks += timeout;
             return 0;
         };
-        using var link = new MacosSerialLink("/dev/fake", api);
+        using var link = new MacosSerialLink("/dev/fake", api, () => ticks);
         await link.OpenAsync(LineSettings.Default, CancellationToken.None);
 
         var bytes = await link.ReadAsync(TimeSpan.FromMilliseconds(100), CancellationToken.None);
 
         Assert.Empty(bytes);
-        Assert.True(api.PollTimeouts.Count >= 2);
-        Assert.All(api.PollTimeouts, value => Assert.InRange(value, 0, 25));
-        Assert.True(api.PollTimeouts[^1] < api.PollTimeouts[0]);
+        Assert.Equal([25, 20], api.PollTimeouts);
     }
 
 
